@@ -48,9 +48,18 @@ def read_geojson(uploaded_file) -> dict:
     return json.loads(uploaded_file.getvalue().decode("utf-8"))
 
 
-def read_csv(uploaded_file) -> pd.DataFrame:
-    df = pd.read_csv(uploaded_file)
+def read_csv(file_path) -> pd.DataFrame:
+    df = pd.read_csv(file_path)
     # Normalize expected columns
+    # combined_google_trends_data.csv has: date, Program, region, value
+    if "Program" in df.columns:
+        df = df.rename(columns={"Program": "topic_name"})
+    if "value" in df.columns:
+        df = df.rename(columns={"value": "interest_value"})
+    
+    if "region_name" not in df.columns:
+        df["region_name"] = df["region"]
+
     expected = {"date", "topic_name", "region", "region_name", "interest_value"}
     missing = expected - set(df.columns)
     if missing:
@@ -141,7 +150,8 @@ def build_region_centroids(geojson: dict) -> dict:
     centroids = {}
     for feat in geojson.get("features", []):
         props = feat.get("properties") or {}
-        code = props.get("RGN24CD")
+        # Try country code first, then region code
+        code = props.get("CTRY24CD") or props.get("RGN24CD")
         if not code:
             continue
         c = feature_centroid(feat)
@@ -195,12 +205,12 @@ def feature_centroid(feature):
 def build_region_centroids(geojson: dict) -> dict:
     """
     Returns dict: region_code -> (lat, lon)
-    Uses geojson feature properties RGN24CD.
+    Uses geojson feature properties CTRY24CD or RGN24CD.
     """
     centroids = {}
     for feat in geojson.get("features", []):
         props = feat.get("properties", {})
-        code = props.get("RGN24CD")
+        code = props.get("CTRY24CD") or props.get("RGN24CD")
         if not code:
             continue
         c = feature_centroid(feat)
@@ -215,50 +225,47 @@ def build_region_centroids(geojson: dict) -> dict:
 st.set_page_config(page_title="UK Regions Trends Mapper", layout="wide")
 st.title("UK Regions Trends Mapper (CSV + GeoJSON)")
 
-with st.sidebar:
-    st.header("Upload inputs")
-    geo_up = st.file_uploader("GeoJSON (must contain RGN24CD, RGN24NM)", type=["geojson", "json"])
-    csv_up = st.file_uploader("CSV (date, topic_name, region, region_name, interest_value)", type=["csv"])
+GEOJSON_PATH = "data/Countries_December_2024_Boundaries_UK_BUC_7315501150803133753 (1).geojson"
+CSV_PATH = "data/combined_google_trends_data.csv"
 
-    st.divider()
+with st.sidebar:
+    st.header("Settings")
     mode = st.radio(
         "Mode",
         ["Choropleth", "Markers + Sparklines", "Animated HeatMap (centroids)"],
         index=0,
     )
 
-if not geo_up or not csv_up:
-    st.info("Upload both a GeoJSON and a CSV to begin.")
-    st.stop()
-
 try:
-    geojson = read_geojson(geo_up)
-    df = read_csv(csv_up)
+    with open(GEOJSON_PATH, "r", encoding="utf-8") as f:
+        geojson = json.load(f)
+    df = read_csv(CSV_PATH)
 except Exception as e:
-    st.error(str(e))
+    st.error(f"Error loading data: {e}")
     st.stop()
 
 # Filters
 topics = sorted(df["topic_name"].unique().tolist())
 min_d, max_d = df["date"].min().date(), df["date"].max().date()
 
-c1, c2, c3 = st.columns([2, 2, 2])
+c1, c2 = st.columns([2, 2])
 with c1:
     topic_sel = st.selectbox("Topic", topics, index=0)
 with c2:
-    date_range = st.date_input("Date range", value=(min_d, max_d), min_value=min_d, max_value=max_d)
-with c3:
     agg = st.selectbox("Aggregation", ["mean", "sum", "latest"], index=0)
 
-if isinstance(date_range, tuple) and len(date_range) == 2:
-    d0, d1 = date_range
-else:
-    d0, d1 = min_d, max_d
+# Time Slider at the bottom
+unique_dates = sorted(df["date"].dt.date.unique())
+selected_date = st.select_slider(
+    "Select Date",
+    options=unique_dates,
+    value=unique_dates[-1],
+    key="time_slider"
+)
 
 mask = (
     (df["topic_name"] == topic_sel)
-    & (df["date"].dt.date >= d0)
-    & (df["date"].dt.date <= d1)
+    & (df["date"].dt.date == selected_date)
 )
 df_f = df.loc[mask].copy()
 
@@ -281,12 +288,25 @@ region_vals["interest_value"] = region_vals["interest_value"].astype(float)
 # Center the map (roughly UK)
 m = folium.Map(location=(54.5, -3.0), zoom_start=5, tiles="cartodbpositron")
 
+# Handle region mapping for Countries
+# The CSV has 'England', 'Wales', 'Scotland', 'Northern Ireland' in the 'region' column.
+# We need to map these to the CTRY24CD in the GeoJSON.
+country_map = {
+    "England": "E92000001",
+    "Northern Ireland": "N92000002",
+    "Scotland": "S92000003",
+    "Wales": "W92000004"
+}
+
+# Create a mapping from country name to code
+region_vals["region_code"] = region_vals["region"].map(country_map)
+
 # Choropleth layer
 folium.Choropleth(
     geo_data=geojson,
-    data=region_vals,
-    columns=["region", "interest_value"],
-    key_on="feature.properties.RGN24CD",
+    data=region_vals.dropna(subset=["region_code"]),
+    columns=["region_code", "interest_value"],
+    key_on="feature.properties.CTRY24CD",
     fill_opacity=0.75,
     line_opacity=0.3,
     nan_fill_opacity=0.1,
@@ -297,9 +317,9 @@ folium.Choropleth(
 val_lookup = dict(zip(region_vals["region"], region_vals["interest_value"]))
 for feat in geojson.get("features", []):
     props = feat.get("properties", {})
-    code = str(props.get("RGN24CD", ""))
-    name = props.get("RGN24NM", "")
-    v = val_lookup.get(code, None)
+    code = str(props.get("CTRY24CD") or props.get("RGN24CD") or "")
+    name = props.get("CTRY24NM") or props.get("RGN24NM") or ""
+    v = val_lookup.get(name, None)
     props["_value"] = None if v is None else float(v)
     props["_tooltip"] = f"{name} ({code}) — {'' if v is None else round(v, 1)}"
 
