@@ -227,6 +227,7 @@ st.title("UK Regions Trends Mapper (CSV + GeoJSON)")
 
 GEOJSON_PATH = "data/Countries_December_2024_Boundaries_UK_BUC_7315501150803133753 (1).geojson"
 CSV_PATH = "data/combined_google_trends_data.csv"
+BLUESKY_PATH = "blue_sky_top_posts.csv"
 
 with st.sidebar:
     st.header("Settings")
@@ -240,6 +241,15 @@ try:
     with open(GEOJSON_PATH, "r", encoding="utf-8") as f:
         geojson = json.load(f)
     df = read_csv(CSV_PATH)
+    
+    # Load BlueSky data
+    df_bs = pd.read_csv(BLUESKY_PATH)
+    # Specify utc=True to handle mixed timezones and silence the warning
+    df_bs["created_at"] = pd.to_datetime(df_bs["created_at"], errors="coerce", utc=True)
+    # Drop rows where created_at is NaT to avoid .dt accessor error
+    df_bs = df_bs.dropna(subset=["created_at"])
+    # Ensure it's treated as a datetime series
+    df_bs["date_only"] = df_bs["created_at"].dt.date
 except Exception as e:
     st.error(f"Error loading data: {e}")
     st.stop()
@@ -422,8 +432,37 @@ elif mode == "Animated HeatMap (centroids)":
 
 folium.LayerControl(collapsed=False).add_to(m)
 
-st.subheader("Map")
-st_folium(m, width=None, height=650)
+# Layout: Map on left, BlueSky on right
+col_map, col_bs = st.columns([3, 1])
+
+with col_map:
+    st.subheader("Map")
+    st_folium(m, width=None, height=650)
+
+with col_bs:
+    st.subheader("Top BlueSky Posts")
+    
+    # Filter BlueSky posts for the selected date and topic
+    # The BlueSky data might be sparse, so we show posts for the selected month if no exact date match
+    bs_mask = (df_bs["topic"] == topic_sel) & (df_bs["date_only"] == selected_date)
+    bs_f = df_bs.loc[bs_mask].sort_values("likes", ascending=False)
+    
+    if bs_f.empty:
+        # Fallback to month if no posts for specific day
+        sel_month = selected_date.strftime("%B %Y")
+        bs_mask_m = (df_bs["topic"] == topic_sel) & (df_bs["month"] == sel_month)
+        bs_f = df_bs.loc[bs_mask_m].sort_values("likes", ascending=False)
+        st.info(f"Showing posts for {sel_month}")
+
+    if bs_f.empty:
+        st.write("No BlueSky posts found for this period/topic.")
+    else:
+        for _, post in bs_f.head(10).iterrows():
+            with st.container(border=True):
+                st.markdown(f"**@{post['author']}**")
+                st.write(post['text'])
+                st.caption(f"❤️ {post['likes']} | 🔁 {post['reposts']} | 💬 {post['replies']}")
+                st.caption(f"📅 {post['created_at'].strftime('%Y-%m-%d %H:%M')}")
 
 st.subheader("Filtered rows preview")
 st.dataframe(df_f.head(50), use_container_width=True)
