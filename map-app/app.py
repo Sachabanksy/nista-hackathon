@@ -15,6 +15,89 @@ from calendar import month_name
 
 
 # -----------------------------
+# Dark Mode Styling
+# -----------------------------
+def apply_dark_mode():
+    st.markdown("""
+        <style>
+        /* Main background */
+        .stApp {
+            background-color: #0a0e27;
+        }
+        
+        /* Sidebar */
+        [data-testid="stSidebar"] {
+            background-color: #0f1419;
+        }
+        
+        /* All text */
+        .stApp, .stMarkdown, p, span, label {
+            color: #e8eaed !important;
+        }
+        
+        /* Headers */
+        h1, h2, h3, h4, h5, h6 {
+            color: #ffffff !important;
+        }
+        
+        /* Dataframe */
+        [data-testid="stDataFrame"] {
+            background-color: #1a1f3a;
+        }
+        
+        /* Containers with borders */
+        [data-testid="stVerticalBlock"] > div:has(> div.element-container) {
+            background-color: #1a1f3a;
+        }
+        
+        /* Input widgets */
+        .stSelectbox, .stSlider, .stRadio {
+            color: #e8eaed !important;
+        }
+        
+        /* Select box dropdown */
+        [data-baseweb="select"] {
+            background-color: #1a1f3a !important;
+        }
+        
+        /* Slider */
+        [data-testid="stSlider"] {
+            background-color: transparent;
+        }
+        
+        /* Info boxes */
+        .stAlert {
+            background-color: #1a1f3a;
+            color: #e8eaed;
+        }
+        
+        /* Containers */
+        div[data-testid="stHorizontalBlock"],
+        div[data-testid="stVerticalBlock"] {
+            background-color: transparent;
+        }
+        
+        /* Caption text */
+        .stCaption {
+            color: #9aa0a6 !important;
+        }
+        
+        /* Warning boxes */
+        .stWarning {
+            background-color: #2d2a1f;
+            color: #ffc107;
+        }
+        
+        /* Error boxes */
+        .stError {
+            background-color: #2d1f1f;
+            color: #ff6b6b;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+
+# -----------------------------
 # Helpers
 # -----------------------------
 def parse_bluesky_json(uploaded_file) -> dict:
@@ -76,18 +159,22 @@ def read_csv(file_path) -> pd.DataFrame:
 
 
 def sparkline_png_base64(series: pd.Series, title: str = "") -> str:
+    # Dark theme for sparklines
+    plt.style.use('dark_background')
     fig = plt.figure(figsize=(3.2, 0.9), dpi=150)
+    fig.patch.set_facecolor('#1a1f3a')
     ax = fig.add_subplot(111)
-    ax.plot(series.index, series.values)
+    ax.set_facecolor('#1a1f3a')
+    ax.plot(series.index, series.values, color='#4da6ff', linewidth=2)
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.set_title(title, fontsize=8)
+    ax.set_title(title, fontsize=8, color='#e8eaed')
     for spine in ax.spines.values():
         spine.set_visible(False)
     fig.tight_layout(pad=0.2)
 
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight", pad_inches=0.05)
+    fig.savefig(buf, format="png", bbox_inches="tight", pad_inches=0.05, facecolor='#1a1f3a')
     plt.close(fig)
 
     b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
@@ -166,63 +253,14 @@ def build_region_centroids(geojson: dict) -> dict:
     return centroids
 
 
-# def polygon_centroid(coords):
-#     """
-#     coords: list of [lon, lat] points (first ring)
-#     Simple centroid approximation (works fine for many boundaries).
-#     """
-#     xs = [p[0] for p in coords]
-#     ys = [p[1] for p in coords]
-#     return (float(np.mean(ys)), float(np.mean(xs)))  # return (lat, lon)
-
-
-def feature_centroid(feature):
-    """
-    Supports Polygon and MultiPolygon. Returns (lat, lon) approximation.
-    """
-    geom = feature.get("geometry", {})
-    gtype = geom.get("type")
-    coords = geom.get("coordinates", [])
-
-    if gtype == "Polygon":
-        ring = coords[0] if coords else []
-        return polygon_centroid(ring)
-    if gtype == "MultiPolygon":
-        # take the largest polygon's first ring by number of points
-        best_ring = None
-        best_len = -1
-        for poly in coords:
-            ring = poly[0] if poly else []
-            if len(ring) > best_len:
-                best_len = len(ring)
-                best_ring = ring
-        if best_ring:
-            return polygon_centroid(best_ring)
-
-    return None
-
-
-def build_region_centroids(geojson: dict) -> dict:
-    """
-    Returns dict: region_code -> (lat, lon)
-    Uses geojson feature properties CTRY24CD or RGN24CD.
-    """
-    centroids = {}
-    for feat in geojson.get("features", []):
-        props = feat.get("properties", {})
-        code = props.get("CTRY24CD") or props.get("RGN24CD")
-        if not code:
-            continue
-        c = feature_centroid(feat)
-        if c:
-            centroids[str(code)] = c
-    return centroids
-
-
 # -----------------------------
 # Streamlit UI
 # -----------------------------
 st.set_page_config(page_title="UK Regions Trends Mapper", layout="wide")
+
+# Apply dark mode styling
+apply_dark_mode()
+
 st.title("UK Regions Trends Mapper (CSV + GeoJSON)")
 
 GEOJSON_PATH = "data/Countries_December_2024_Boundaries_UK_BUC_7315501150803133753 (1).geojson"
@@ -295,8 +333,8 @@ else:  # latest
 region_vals["region"] = region_vals["region"].astype(str)
 region_vals["interest_value"] = region_vals["interest_value"].astype(float)
 
-# Center the map (roughly UK)
-m = folium.Map(location=(54.5, -3.0), zoom_start=5, tiles="cartodbpositron")
+# Center the map (roughly UK) - using dark tiles
+m = folium.Map(location=(54.5, -3.0), zoom_start=5, tiles="CartoDB dark_matter")
 
 # Handle region mapping for Countries
 # The CSV has 'England', 'Wales', 'Scotland', 'Northern Ireland' in the 'region' column.
@@ -364,9 +402,11 @@ if mode == "Markers + Sparklines":
         latest = float(s.dropna().iloc[-1]) if s.dropna().shape[0] else None
 
         popup_html = (
-            f"<b>{region_code}</b><br>"
-            f"Latest (weekly): <b>{'' if latest is None else round(latest, 1)}</b><br>"
+            f'<div style="background-color: #1a1f3a; padding: 10px; border-radius: 5px;">'
+            f'<b style="color: #e8eaed;">{region_code}</b><br>'
+            f'<span style="color: #9aa0a6;">Latest (weekly): </span><b style="color: #4da6ff;">{" " if latest is None else round(latest, 1)}</b><br>'
             f'<img src="{img}" style="width:280px; height:auto;" />'
+            f'</div>'
         )
 
         folium.Marker(
