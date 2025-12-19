@@ -1,0 +1,136 @@
+date,topic_name,region,region_name,interest_value
+2024-12-19,HS2,E12000003,Yorkshire and The Humber,44
+2024-12-21,Football,E12000008,South East,35
+2024-12-22,Brexit,E12000004,East Midlands,21
+2024-12-23,HS2,E12000004,East Midlands,89
+2024-12-24,Football,E12000005,West Midlands,17
+2024-12-25,Climate Change,E12000008,South East,41
+2024-12-30,Tourism,E12000005,West Midlands,37
+2025-01-01,Royal Family,E12000007,London,74
+2025-01-02,HS2,E12000004,East Midlands,61
+2025-01-11,Education,E12000007,London,82
+2025-01-20,Tourism,E12000007,London,24
+2025-01-22,Energy Prices,E12000007,London,8
+2025-01-29,Immigration,E12000002,North West,24
+2025-01-31,Health,E12000007,London,75
+2025-02-01,Football,E12000004,East Midlands,91
+2025-02-03,Tourism,E12000002,North West,29
+2025-02-06,NHS,E12000002,North West,60
+2025-02-07,Economy,E12000003,Yorkshire and The Humber,82
+2025-02-07,Energy Prices,E12000005,West Midlands,47
+2025-02-07,Sizewell C,E12000006,East of England,36
+2025-02-07,Health,E12000006,East of England,23
+2025-02-10,Football,E12000006,East of England,31
+2025-02-10,Royal Family,E12000001,North East,44
+2025-02-11,Brexit,E12000009,South West,26
+2025-02-15,Tourism,E12000005,West Midlands,56
+2025-02-21,Football,E12000009,South West,31
+2025-02-22,Brexit,E12000009,South West,36
+2025-02-24,New Hospital Programme,E12000008,South East,43
+2025-02-27,NHS,E12000009,South West,57
+2025-03-01,Climate Change,E12000002,North West,28
+2025-03-11,Football,E12000001,North East,63
+2025-03-15,New Hospital Programme,E12000009,South West,83
+2025-03-19,Housing,E12000005,West Midlands,46
+2025-03-20,Football,E12000005,West Midlands,19
+2025-03-22,Immigration,E12000009,South West,20
+2025-03-25,Royal Family,E12000001,North East,27
+2025-03-29,Transport,E12000004,East Midlands,64
+2025-03-30,New Hospital Programme,E12000009,South West,39
+2025-04-01,Brexit,E12000002,North West,78
+2025-04-01,Football,E12000004,East Midlands,88
+2025-04-05,Health,E12000008,South East,40
+2025-04-06,Housing,E12000002,North West,38
+2025-04-06,NHS,E12000002,North West,45
+2025-04-07,Education,E12000005,West Midlands,92
+2025-04-08,Housing,E12000008,South East,17
+2025-04-14,Immigration,E12000001,North East,69
+2025-04-20,Housing,E12000003,Yorkshire and The Humber,56
+2025-04-21,Football,E12000003,Yorkshire and The Humber,48
+2025-04-27,Brexit,E12000004,East Midlands,9
+2025-05-01,NHS,E12000002,North West,44
+2025-05-03,Housing,E12000005,West Midlands,28
+2025-05-05,Football,E12000007,London,65
+2025-05-09,Football,E12000004,East Midlands,54
+2025-05-13,Transport,E12000004,East Midlands,30
+2025-05-13,Technology,E12000008,South East,66
+2025-05-17,Sizewell C,E12000001,North East,72
+2025-05-18,Royal Family,E12000008,South East,93
+2025-05-19,Housing,E12000003,Yorkshire and The Humber,36
+2025-05-23,HS2,E12000008,South East,77
+2025-05-24,Tourism,E12000004,East Midlands,56
+2025-05-25,Royal Family,E12000008,South East,63
+2025-05-26,Energy Prices,E12000005,West Midlands,24
+2025-05-27,Economy,E12000006,East of England,53
+2025-05-29,Sizewell C,E12000004,East Midlands,32
+2025-06-13,Health,E12000003,Yorkshire and The Humber,22
+2025-06-14,Football,E12000004,East Midlands,32
+2025-06-15,Football,E12000001,North East,36
+2025-06-19,Transport,E12000008,South East,10
+2025-06-20,Economy,E12000009,South West,63
+2025-06-24,Royal Family,E12000009,South West,21
+2025-06-26,Cost of Living,E12000001,North East,17
+2025-06-28,Economy,E12000003,Yorkshire and The Humber,69
+2025-06-29,HS2,E12000002,North West,64
+2025-06-30,Cost of Living,E12000005,West Midlands,35
+2025-07-05,Education,E12000008,South East,57
+2025-07-08,HS2,E12000007,London,74
+2025-07-10,Brexit,E12000006,East of England,46
+2025-07-14,Energy Prices,E12000004,East Midlands,30
+2025-07-16,Tourism,E12000004,East Midlands,67
+2025-07-17,Climate Change,E12000001,North East,20
+2025-07-22,Brexit,E12000001,North East,20
+2025-07-22,Sizewell C,E12000005,West Midlands,66
+2025-07-26,Transport,E12000001,North East,17
+2025-07-26,Sizewell C,E12000009,South West,63
+2025-07-27,Sizewell C,E12000003,Yorkshire and The Humber,69
+2025-07-28,Tourism,E12000003,Yorkshire and The Humber,30
+2025-08-08,Health,E12000007,London,68
+2025-08-11,HS2,E12000005,West Midlands,72
+2025-08-11,HS2,E12000006,East of England,62
+2025-08-12,Climate Change,E12000002,North West,73
+2025-08-15,Tourism,E12000009,South West,31
+2025-08-16,Technology,E12000009,South West,25
+2025-08-21,Sizewell C,E12000007,London,46
+2025-08-21,Brexit,E12000003,Yorkshire and The Humber,23
+2025-08-23,Tourism,E12000001,North East,38
+2025-08-26,Tourism,E12000002,North West,49
+2025-08-26,NHS,E12000006,East of England,36
+2025-08-28,Brexit,E12000009,South West,65
+2025-09-01,Housing,E12000007,London,36
+2025-09-02,Transport,E12000006,East of England,21
+2025-09-02,Education,E12000008,South East,37
+2025-09-04,NHS,E12000008,South East,69
+2025-09-07,Brexit,E12000001,North East,65
+2025-09-09,Economy,E12000003,Yorkshire and The Humber,60
+2025-09-14,Technology,E12000009,South West,66
+2025-09-19,NHS,E12000007,London,65
+2025-09-19,HS2,E12000003,Yorkshire and The Humber,77
+2025-09-22,Housing,E12000005,West Midlands,62
+2025-09-25,Tourism,E12000006,East of England,40
+2025-09-25,Football,E12000006,East of England,62
+2025-09-28,Climate Change,E12000003,Yorkshire and The Humber,47
+2025-09-29,Transport,E12000006,East of England,81
+2025-10-05,Royal Family,E12000007,London,72
+2025-10-06,Climate Change,E12000007,London,90
+2025-10-11,Football,E12000003,Yorkshire and The Humber,37
+2025-10-19,Health,E12000002,North West,42
+2025-10-21,Football,E12000002,North West,55
+2025-10-27,Cost of Living,E12000005,West Midlands,62
+2025-10-30,New Hospital Programme,E12000006,East of England,19
+2025-11-05,Housing,E12000006,East of England,47
+2025-11-07,Tourism,E12000007,London,13
+2025-11-11,Sizewell C,E12000006,East of England,73
+2025-11-13,Climate Change,E12000001,North East,73
+2025-11-16,Transport,E12000001,North East,62
+2025-11-18,Transport,E12000008,South East,33
+2025-11-21,Health,E12000008,South East,80
+2025-11-28,Brexit,E12000005,West Midlands,38
+2025-12-01,Brexit,E12000003,Yorkshire and The Humber,45
+2025-12-02,HS2,E12000009,South West,55
+2025-12-05,Cost of Living,E12000002,North West,60
+2025-12-07,HS2,E12000006,East of England,23
+2025-12-08,HS2,E12000001,North East,28
+2025-12-11,Brexit,E12000002,North West,68
+2025-12-15,Sizewell C,E12000004,East Midlands,31
+2025-12-18,Cost of Living,E12000007,London,52
