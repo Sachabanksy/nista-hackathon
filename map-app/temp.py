@@ -18,5 +18,15 @@ for file in files:
     data['Program'] = file_name_to_program_lookup[file]
     all_data = pd.concat([all_data, data], ignore_index=True)
 
-all_data.to_csv('data/combined_google_trends_data.csv', index=False)
+region_cols = ['England', 'Wales', 'Scotland', 'Northern Ireland']
+
+# Melt the dataframe: one row per date–program–region
+long_df = all_data.melt(
+    id_vars=['date', 'Program'],        # columns to keep as identifiers
+    value_vars=region_cols,             # columns to unpivot
+    var_name='region',                  # name of the new region column
+    value_name='value'                  # name of the values column
+)
+
+long_df.to_csv('data/combined_google_trends_data.csv', index=False)
 print("done")
