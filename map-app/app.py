@@ -1,0 +1,409 @@
+import io
+import json
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
+import streamlit as st
+import folium
+from folium import plugins
+from streamlit_folium import st_folium
+
+import matplotlib.pyplot as plt
+import base64
+from calendar import month_name
+
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def parse_bluesky_json(uploaded_file) -> dict:
+    return json.loads(uploaded_file.getvalue().decode("utf-8"))
+
+def month_str_to_month_num(month_str: str) -> int:
+    # month_str like "December 2025" or "December"
+    parts = month_str.strip().split()
+    mname = parts[0]
+    for i in range(1, 13):
+        if month_name[i].lower() == mname.lower():
+            return i
+    raise ValueError(f"Unrecognized month name: {month_str}")
+
+def month_bounds(year: int, month: int):
+    start = pd.Timestamp(year=year, month=month, day=1)
+    end = start + pd.offsets.MonthBegin(1)  # first day of next month
+    return start, end
+
+def safe_parse_created_at(s: str) -> pd.Timestamp | None:
+    # handles "2025-12-18T01:25:52.713Z" and "+00:00"
+    try:
+        ts = pd.to_datetime(s, utc=True, errors="coerce")
+        if pd.isna(ts):
+            return None
+        return ts
+    except Exception:
+        return None
+
+def read_geojson(uploaded_file) -> dict:
+    return json.loads(uploaded_file.getvalue().decode("utf-8"))
+
+
+def read_csv(uploaded_file) -> pd.DataFrame:
+    df = pd.read_csv(uploaded_file)
+    # Normalize expected columns
+    expected = {"date", "topic_name", "region", "region_name", "interest_value"}
+    missing = expected - set(df.columns)
+    if missing:
+        raise ValueError(f"CSV missing columns: {sorted(missing)}")
+
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["interest_value"] = pd.to_numeric(df["interest_value"], errors="coerce")
+    df["region"] = df["region"].astype(str)
+    df["topic_name"] = df["topic_name"].astype(str)
+    df["region_name"] = df["region_name"].astype(str)
+
+    df = df.dropna(subset=["date", "interest_value", "region", "topic_name"])
+    return df
+
+
+def sparkline_png_base64(series: pd.Series, title: str = "") -> str:
+    fig = plt.figure(figsize=(3.2, 0.9), dpi=150)
+    ax = fig.add_subplot(111)
+    ax.plot(series.index, series.values)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_title(title, fontsize=8)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    fig.tight_layout(pad=0.2)
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight", pad_inches=0.05)
+    plt.close(fig)
+
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f"data:image/png;base64,{b64}"
+
+def polygon_centroid(coords):
+    """
+    coords: list of points, usually [ [lon, lat], ... ]
+    Returns (lat, lon) or None
+    """
+    xs, ys = [], []
+    for p in coords or []:
+        if not isinstance(p, (list, tuple)) or len(p) < 2:
+            continue
+        x, y = p[0], p[1]
+        if x is None or y is None:
+            continue
+        try:
+            x = float(x)
+            y = float(y)
+        except Exception:
+            continue
+        if not (np.isfinite(x) and np.isfinite(y)):
+            continue
+        xs.append(x)
+        ys.append(y)
+
+    if not xs:
+        return None
+
+    # return (lat, lon)
+    return (float(np.mean(ys)), float(np.mean(xs)))
+
+
+def feature_centroid(feature):
+    geom = feature.get("geometry") or {}
+    gtype = geom.get("type")
+    coords = geom.get("coordinates") or []
+
+    if gtype == "Polygon":
+        ring = coords[0] if coords else []
+        return polygon_centroid(ring)
+
+    if gtype == "MultiPolygon":
+        best = None
+        best_len = -1
+        for poly in coords:
+            ring = poly[0] if poly else []
+            c = polygon_centroid(ring)
+            if c is not None and len(ring) > best_len:
+                best_len = len(ring)
+                best = c
+        return best
+
+    # Unknown/unsupported geometry type
+    return None
+
+
+def build_region_centroids(geojson: dict) -> dict:
+    centroids = {}
+    for feat in geojson.get("features", []):
+        props = feat.get("properties") or {}
+        code = props.get("RGN24CD")
+        if not code:
+            continue
+        c = feature_centroid(feat)
+        if c is None:
+            continue
+        lat, lon = c
+        if lat is None or lon is None:
+            continue
+        if not (np.isfinite(lat) and np.isfinite(lon)):
+            continue
+        centroids[str(code)] = (float(lat), float(lon))
+    return centroids
+
+
+# def polygon_centroid(coords):
+#     """
+#     coords: list of [lon, lat] points (first ring)
+#     Simple centroid approximation (works fine for many boundaries).
+#     """
+#     xs = [p[0] for p in coords]
+#     ys = [p[1] for p in coords]
+#     return (float(np.mean(ys)), float(np.mean(xs)))  # return (lat, lon)
+
+
+def feature_centroid(feature):
+    """
+    Supports Polygon and MultiPolygon. Returns (lat, lon) approximation.
+    """
+    geom = feature.get("geometry", {})
+    gtype = geom.get("type")
+    coords = geom.get("coordinates", [])
+
+    if gtype == "Polygon":
+        ring = coords[0] if coords else []
+        return polygon_centroid(ring)
+    if gtype == "MultiPolygon":
+        # take the largest polygon's first ring by number of points
+        best_ring = None
+        best_len = -1
+        for poly in coords:
+            ring = poly[0] if poly else []
+            if len(ring) > best_len:
+                best_len = len(ring)
+                best_ring = ring
+        if best_ring:
+            return polygon_centroid(best_ring)
+
+    return None
+
+
+def build_region_centroids(geojson: dict) -> dict:
+    """
+    Returns dict: region_code -> (lat, lon)
+    Uses geojson feature properties RGN24CD.
+    """
+    centroids = {}
+    for feat in geojson.get("features", []):
+        props = feat.get("properties", {})
+        code = props.get("RGN24CD")
+        if not code:
+            continue
+        c = feature_centroid(feat)
+        if c:
+            centroids[str(code)] = c
+    return centroids
+
+
+# -----------------------------
+# Streamlit UI
+# -----------------------------
+st.set_page_config(page_title="UK Regions Trends Mapper", layout="wide")
+st.title("UK Regions Trends Mapper (CSV + GeoJSON)")
+
+with st.sidebar:
+    st.header("Upload inputs")
+    geo_up = st.file_uploader("GeoJSON (must contain RGN24CD, RGN24NM)", type=["geojson", "json"])
+    csv_up = st.file_uploader("CSV (date, topic_name, region, region_name, interest_value)", type=["csv"])
+
+    st.divider()
+    mode = st.radio(
+        "Mode",
+        ["Choropleth", "Markers + Sparklines", "Animated HeatMap (centroids)"],
+        index=0,
+    )
+
+if not geo_up or not csv_up:
+    st.info("Upload both a GeoJSON and a CSV to begin.")
+    st.stop()
+
+try:
+    geojson = read_geojson(geo_up)
+    df = read_csv(csv_up)
+except Exception as e:
+    st.error(str(e))
+    st.stop()
+
+# Filters
+topics = sorted(df["topic_name"].unique().tolist())
+min_d, max_d = df["date"].min().date(), df["date"].max().date()
+
+c1, c2, c3 = st.columns([2, 2, 2])
+with c1:
+    topic_sel = st.selectbox("Topic", topics, index=0)
+with c2:
+    date_range = st.date_input("Date range", value=(min_d, max_d), min_value=min_d, max_value=max_d)
+with c3:
+    agg = st.selectbox("Aggregation", ["mean", "sum", "latest"], index=0)
+
+if isinstance(date_range, tuple) and len(date_range) == 2:
+    d0, d1 = date_range
+else:
+    d0, d1 = min_d, max_d
+
+mask = (
+    (df["topic_name"] == topic_sel)
+    & (df["date"].dt.date >= d0)
+    & (df["date"].dt.date <= d1)
+)
+df_f = df.loc[mask].copy()
+
+if df_f.empty:
+    st.warning("No rows match your filters.")
+    st.stop()
+
+# Aggregate to one value per region for choropleth
+if agg == "mean":
+    region_vals = df_f.groupby("region", as_index=False)["interest_value"].mean()
+elif agg == "sum":
+    region_vals = df_f.groupby("region", as_index=False)["interest_value"].sum()
+else:  # latest
+    df_latest = df_f.sort_values("date").groupby("region", as_index=False).tail(1)
+    region_vals = df_latest[["region", "interest_value"]].copy()
+
+region_vals["region"] = region_vals["region"].astype(str)
+region_vals["interest_value"] = region_vals["interest_value"].astype(float)
+
+# Center the map (roughly UK)
+m = folium.Map(location=(54.5, -3.0), zoom_start=5, tiles="cartodbpositron")
+
+# Choropleth layer
+folium.Choropleth(
+    geo_data=geojson,
+    data=region_vals,
+    columns=["region", "interest_value"],
+    key_on="feature.properties.RGN24CD",
+    fill_opacity=0.75,
+    line_opacity=0.3,
+    nan_fill_opacity=0.1,
+    legend_name=f'{topic_sel} ({agg})',
+).add_to(m)
+
+# Add tooltips showing region name + value
+val_lookup = dict(zip(region_vals["region"], region_vals["interest_value"]))
+for feat in geojson.get("features", []):
+    props = feat.get("properties", {})
+    code = str(props.get("RGN24CD", ""))
+    name = props.get("RGN24NM", "")
+    v = val_lookup.get(code, None)
+    props["_value"] = None if v is None else float(v)
+    props["_tooltip"] = f"{name} ({code}) — {'' if v is None else round(v, 1)}"
+
+folium.GeoJson(
+    geojson,
+    name="regions",
+    style_function=lambda x: {"fillOpacity": 0, "color": "transparent", "weight": 0},
+    tooltip=folium.GeoJsonTooltip(fields=["_tooltip"], aliases=[""], labels=False),
+).add_to(m)
+
+# Modes that use centroids
+centroids = build_region_centroids(geojson)
+
+if mode == "Markers + Sparklines":
+    # One marker per region with a popup sparkline for that region and topic
+    # Build region time series
+    ts = (
+        df.loc[df["topic_name"] == topic_sel]
+        .set_index("date")
+        .sort_index()
+        .groupby("region")["interest_value"]
+    )
+
+    for region_code, (lat, lon) in centroids.items():
+        if region_code not in ts.groups:
+            continue
+        s = ts.get_group(region_code).resample("W").mean()  # weekly mean for smoother sparkline
+        if s.empty:
+            continue
+
+        img = sparkline_png_base64(s, title=f"{topic_sel} — {region_code}")
+        latest = float(s.dropna().iloc[-1]) if s.dropna().shape[0] else None
+
+        popup_html = (
+            f"<b>{region_code}</b><br>"
+            f"Latest (weekly): <b>{'' if latest is None else round(latest, 1)}</b><br>"
+            f'<img src="{img}" style="width:280px; height:auto;" />'
+        )
+
+        folium.Marker(
+            location=(lat, lon),
+            tooltip=region_code,
+            popup=folium.Popup(popup_html, max_width=320),
+        ).add_to(m)
+
+elif mode == "Animated HeatMap (centroids)":
+    # Build time frames from weekly buckets: each frame contains points [lat, lon, weight]
+    df_anim = df_f.copy()
+    df_anim["week"] = df_anim["date"].dt.to_period("W").dt.start_time
+
+    # Aggregate interest per region per week
+    w = df_anim.groupby(["week", "region"], as_index=False)["interest_value"].mean()
+    weeks = sorted(w["week"].unique().tolist())
+
+    frames = []
+    labels = []
+    for wk in weeks:
+        wwk = w[w["week"] == wk]
+        pts = []
+        vals = []
+        for _, row in wwk.iterrows():
+            code = str(row["region"])
+            if code not in centroids:
+                continue
+            lat, lon = centroids[code]
+            val = float(row["interest_value"])
+            pts.append([lat, lon, val])
+            vals.append(val)
+
+        latlon = centroids.get(code)
+        if not latlon:
+            continue
+
+        lat, lon = latlon
+        if lat is None or lon is None:
+            continue
+        if not (np.isfinite(lat) and np.isfinite(lon)):
+            continue
+
+        pts.append([lat, lon, val])
+
+        # Normalize per-frame to 0-100 so the animation contrast stays visible
+        if pts and (max(vals) > min(vals)):
+            vmin, vmax = min(vals), max(vals)
+            pts = [[p[0], p[1], (p[2] - vmin) / (vmax - vmin) * 100.0] for p in pts]
+        elif pts:
+            pts = [[p[0], p[1], 0.0] for p in pts]
+
+        frames.append(pts)
+        labels.append(pd.Timestamp(wk).strftime("%Y-%m-%d"))
+
+    plugins.HeatMapWithTime(
+        data=frames,
+        index=labels,
+        auto_play=True,
+        max_opacity=0.8,
+        radius=25,
+        use_local_extrema=False,
+    ).add_to(m)
+
+folium.LayerControl(collapsed=False).add_to(m)
+
+st.subheader("Map")
+st_folium(m, width=None, height=650)
+
+st.subheader("Filtered rows preview")
+st.dataframe(df_f.head(50), use_container_width=True)

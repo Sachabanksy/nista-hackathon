@@ -27,12 +27,16 @@ def seed_fake_data_from_geojson(geojson_path, entries_per_region=10):
     regions = load_regions_from_geojson(geojson_path)
     print(f"Loaded {len(regions)} regions from geojson")
     
-    # Topics
+# Topics
     topic_names = [
-        'Climate Change', 'Technology', 'Health', 'Education', 'Economy',
-        'Housing', 'Brexit', 'NHS', 'Cost of Living', 'Energy Prices',
-        'Immigration', 'Transport', 'Tourism', 'Football', 'Royal Family'
+        "HS2",  # ✅ ensure present
+        "Sizewell C",
+        "New Hospital Programme",
+        "Climate Change", "Technology", "Health", "Education", "Economy",
+        "Housing", "Brexit", "NHS", "Cost of Living", "Energy Prices",
+        "Immigration", "Transport", "Tourism", "Football", "Royal Family"
     ]
+
     
     data = []
     
